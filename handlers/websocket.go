@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/MarimbaEroica/wordfall/game"
 	"github.com/MarimbaEroica/wordfall/messages"
@@ -14,6 +15,8 @@ import (
 var upgrader = websocket.Upgrader{}
 
 func HandleWebSocket(w http.ResponseWriter, r *http.Request) {
+	upgrader.CheckOrigin = func(r *http.Request) bool { return true } // Allow all origins
+
 	// Upgrade initial GET request to a websocket
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -23,7 +26,28 @@ func HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 	defer conn.Close()
 
 	g := game.NewGame()
-	g.StartTimer()
+
+	// Start the game timer and periodically send updates to the client
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+
+	go func() {
+		for range ticker.C {
+			g.TimeLeft--
+			if g.TimeLeft <= 0 {
+				// Send game over message
+				msg := messages.Message{
+					Type:    "gameOver",
+					Payload: nil,
+				}
+				msgBytes, _ := json.Marshal(msg)
+				conn.WriteMessage(websocket.TextMessage, msgBytes)
+				return
+			} else {
+				sendTimeUpdate(conn, g)
+			}
+		}
+	}()
 
 	// Send initial board state to client
 	sendBoardUpdate(conn, g)
@@ -61,6 +85,17 @@ func sendBoardUpdate(conn *websocket.Conn, g *game.Game) {
 	msg := messages.Message{
 		Type:    "boardUpdate",
 		Payload: boardUpdate,
+	}
+	msgBytes, _ := json.Marshal(msg)
+	conn.WriteMessage(websocket.TextMessage, msgBytes)
+}
+
+func sendTimeUpdate(conn *websocket.Conn, g *game.Game) {
+	msg := messages.Message{
+		Type: "timeUpdate",
+		Payload: messages.TimeUpdate{
+			TimeLeft: g.TimeLeft,
+		},
 	}
 	msgBytes, _ := json.Marshal(msg)
 	conn.WriteMessage(websocket.TextMessage, msgBytes)

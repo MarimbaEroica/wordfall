@@ -13,22 +13,34 @@ document.addEventListener('DOMContentLoaded', () => {
 
     socket.onmessage = function(event) {
         const msg = JSON.parse(event.data);
-        switch (msg.Type) {
+        switch (msg.type) {
             case 'boardUpdate':
-                const payload = msg.Payload;
-                board = payload.Board;
-                score = payload.Score;
-                timeLeft = payload.TimeLeft;
+                const payload = msg.payload;
+                board = payload.board;
+                score = payload.score;
+                timeLeft = payload.timeLeft;
                 updateScore();
                 updateTimer();
                 renderBoard();
+                break;
+            case 'timeUpdate':
+                timeLeft = msg.payload.timeLeft;
+                updateTimer();
                 break;
             case 'invalidWord':
                 alert('Invalid word or path!');
                 clearSelection();
                 break;
+            case 'gameOver':
+                alert('Time is up! Your score is ' + score);
+                socket.close();
+                break;
             // Handle other message types as needed
         }
+    };
+
+    socket.onerror = function(error) {
+        console.error('WebSocket error:', error);
     };
 
     function updateScore() {
@@ -38,11 +50,11 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateTimer() {
         document.getElementById('timer').textContent = timeLeft;
         if (timeLeft <= 0) {
-            alert('Time is up! Your score is ' + score);
+            document.getElementById('timer').textContent = '0';
         }
     }
 
-    // Render the game board
+    // Render the game board with falling animation
     function renderBoard() {
         const gameBoard = document.getElementById('game-board');
         gameBoard.innerHTML = '';
@@ -91,9 +103,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // Submit word
     function submitWord() {
         const message = {
-            Type: 'wordSubmission',
-            Payload: {
-                SelectedTiles: selectedTiles
+            type: 'wordSubmission',
+            payload: {
+                selectedTiles: selectedTiles
             }
         };
         socket.send(JSON.stringify(message));
@@ -103,9 +115,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // Remove tiles manually
     function removeTilesManually() {
         const message = {
-            Type: 'manualRemoval',
-            Payload: {
-                SelectedTiles: selectedTiles
+            type: 'manualRemoval',
+            payload: {
+                selectedTiles: selectedTiles
             }
         };
         socket.send(JSON.stringify(message));

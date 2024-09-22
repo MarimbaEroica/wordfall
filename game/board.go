@@ -68,14 +68,11 @@ func (b *Board) RemoveTiles(selectedTiles []messages.TilePosition) {
 	}
 
 	for col, rows := range tilesByColumn {
-		// Sort rows in descending order to avoid index shifting issues
-		sort.Slice(rows, func(i, j int) bool {
-			return rows[i] > rows[j]
-		})
-
-		for _, row := range rows {
+		// Sort rows in ascending order
+		sort.Ints(rows)
+		for i, row := range rows {
 			columnLen := len(b.Columns[col])
-			tileIdx := columnLen - row - 1
+			tileIdx := columnLen - row - 1 - i
 			if tileIdx >= 0 && tileIdx < len(b.Columns[col]) {
 				b.Columns[col] = append(b.Columns[col][:tileIdx], b.Columns[col][tileIdx+1:]...)
 			}
@@ -90,20 +87,22 @@ func (b *Board) ValidatePath(selectedTiles []messages.TilePosition) bool {
 
 	// Create a map to keep track of visited positions to prevent reusing the same tile
 	visited := make(map[string]bool)
+	for _, tile := range selectedTiles {
+		key := positionKey(tile.Col, tile.Row)
+		if visited[key] {
+			// Cannot reuse the same tile
+			return false
+		}
+		visited[key] = true
+	}
 
 	// Start from the first tile and check adjacency
 	for i := 1; i < len(selectedTiles); i++ {
 		prev := selectedTiles[i-1]
 		curr := selectedTiles[i]
-		key := positionKey(curr.Col, curr.Row)
-		if visited[key] {
-			// Cannot reuse the same tile
-			return false
-		}
 		if !areAdjacent(prev, curr) {
 			return false
 		}
-		visited[key] = true
 	}
 
 	return true

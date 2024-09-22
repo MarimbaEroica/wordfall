@@ -6,20 +6,24 @@ type TilePosition struct {
 }
 
 type Message struct {
-	Type    string      `json:"Type"`
-	Payload interface{} `json:"Payload"`
+	Type    string      `json:"type"`
+	Payload interface{} `json:"payload"`
 }
 
 type BoardUpdate struct {
-	Board    [][]string `json:"Board"`
-	Score    int        `json:"Score"`
-	TimeLeft int        `json:"TimeLeft"`
+	Board    [][]string `json:"board"`
+	Score    int        `json:"score"`
+	TimeLeft int        `json:"timeLeft"`
+}
+
+type TimeUpdate struct {
+	TimeLeft int `json:"timeLeft"`
 }
 
 type WordSubmission struct {
-	SelectedTiles []TilePosition `json:"SelectedTiles"`
+	SelectedTiles []TilePosition `json:"selectedTiles"`
 }
 
 type ManualRemoval struct {
-	SelectedTiles []TilePosition `json:"SelectedTiles"`
+	SelectedTiles []TilePosition `json:"selectedTiles"`
 }
