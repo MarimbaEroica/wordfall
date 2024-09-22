@@ -5,7 +5,8 @@ import (
 	"math"
 	"math/rand"
 	"sort"
-	"wordfall/messages"
+
+	"github.com/MarimbaEroica/wordfall/messages"
 )
 
 type Board struct {

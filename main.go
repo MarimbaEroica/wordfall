@@ -3,7 +3,8 @@ package main
 import (
 	"log"
 	"net/http"
-	"wordfall/handlers"
+
+	"github.com/MarimbaEroica/wordfall/handlers"
 )
 
 func main() {

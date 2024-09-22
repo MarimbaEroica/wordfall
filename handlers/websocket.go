@@ -4,8 +4,9 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
-	"wordfall/game"
-	"wordfall/messages"
+
+	"github.com/MarimbaEroica/wordfall/game"
+	"github.com/MarimbaEroica/wordfall/messages"
 
 	"github.com/gorilla/websocket"
 )

@@ -2,7 +2,8 @@ package game
 
 import (
 	"time"
-	"wordfall/messages"
+
+	"github.com/MarimbaEroica/wordfall/messages"
 )
 
 type Game struct {
