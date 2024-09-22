@@ -1,93 +1,76 @@
 package game
 
 import (
-	"encoding/json"
-	"fmt"
-	"net/http"
-	"sync"
 	"time"
-
-	"github.com/gorilla/websocket"
+	"wordfall/messages"
 )
 
-var upgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool {
-		return true
-	},
-}
-
 type Game struct {
-	Board *Board
-	Score int
-	Timer *time.Timer
-	Mutex sync.Mutex
+	Board      *Board
+	Score      int
+	TimeLeft   int
+	Dictionary map[string]bool
 }
 
-func HandleGame(w http.ResponseWriter, r *http.Request) {
-	conn, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		http.Error(w, "Could not upgrade to WebSocket", http.StatusInternalServerError)
-		return
+func NewGame() *Game {
+	g := &Game{
+		Board:      NewBoard(),
+		Score:      0,
+		TimeLeft:   180,
+		Dictionary: LoadDictionary(),
 	}
-	defer conn.Close()
+	return g
+}
 
-	game := &Game{
-		Board: InitializeBoard(),
-		Score: 0,
-		Timer: time.NewTimer(180 * time.Second),
-	}
-
+func (g *Game) StartTimer() {
+	ticker := time.NewTicker(1 * time.Second)
 	go func() {
-		<-game.Timer.C
-		conn.WriteMessage(websocket.TextMessage, []byte("Game over! Your final score is: "+fmt.Sprint(game.Score)))
-		conn.Close()
-	}()
-
-	for {
-		_, message, err := conn.ReadMessage()
-		if err != nil {
-			return
-		}
-
-		var command map[string]interface{}
-		err = json.Unmarshal(message, &command)
-		if err != nil {
-			continue
-		}
-
-		game.Mutex.Lock()
-
-		switch command["action"] {
-		case "submit_word":
-			path := parsePath(command["path"].([]interface{}))
-			if ValidateInput(path, game.Board) {
-				word := formWord(path, game.Board)
-				game.Score += CalculateScore(word)
-				UpdateBoard(game.Board, path)
-				conn.WriteMessage(websocket.TextMessage, []byte("Score: "+fmt.Sprint(game.Score)))
-			} else {
-				conn.WriteMessage(websocket.TextMessage, []byte("Invalid word"))
+		for range ticker.C {
+			g.TimeLeft--
+			if g.TimeLeft <= 0 {
+				ticker.Stop()
+				// Handle game over if necessary
 			}
-		case "manual_remove":
-			path := parsePath(command["path"].([]interface{}))
-			UpdateBoard(game.Board, path)
-			conn.WriteMessage(websocket.TextMessage, []byte("Tiles removed"))
-		case "get_board":
-			data := PrepareBoardData(game.Board)
-			conn.WriteJSON(data)
 		}
-
-		game.Mutex.Unlock()
-	}
+	}()
 }
 
-// Helper function to parse path from the command
-func parsePath(rawPath []interface{}) [][2]int {
-	path := make([][2]int, len(rawPath))
-	for i, pos := range rawPath {
-		position := pos.([]interface{})
-		path[i][0] = int(position[0].(float64))
-		path[i][1] = int(position[1].(float64))
+func (g *Game) ValidateWord(selectedTiles []messages.TilePosition) (bool, int) {
+	word := ""
+	for _, tilePos := range selectedTiles {
+		tile := g.Board.GetTile(tilePos.Col, tilePos.Row)
+		word += tile
 	}
-	return path
+
+	// Check if the word exists
+	if !g.Dictionary[word] {
+		return false, 0
+	}
+
+	// Check if tiles are adjacent
+	if !g.Board.ValidatePath(selectedTiles) {
+		return false, 0
+	}
+
+	// Calculate score
+	points := CalculateScore(len(word))
+	return true, points
+}
+
+func CalculateScore(length int) int {
+	switch length {
+	case 4:
+		return 1
+	case 5:
+		return 2
+	case 6:
+		return 4
+	case 7:
+		return 7
+	default:
+		if length >= 8 {
+			return 5*(length-8) + 12
+		}
+	}
+	return 0
 }

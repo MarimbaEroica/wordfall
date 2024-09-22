@@ -1,14 +1,19 @@
 package main
 
 import (
-	"fmt"
+	"log"
 	"net/http"
-
-	"github.com/MarimbaEroica/wordfall/game"
+	"wordfall/handlers"
 )
 
 func main() {
-	http.HandleFunc("/game", game.HandleGame)
-	fmt.Println("Starting server on :8080")
-	http.ListenAndServe(":8080", nil)
+	http.HandleFunc("/ws", handlers.HandleWebSocket)
+	fs := http.FileServer(http.Dir("./static"))
+	http.Handle("/", fs)
+
+	log.Println("Server started on :8080")
+	err := http.ListenAndServe(":8080", nil)
+	if err != nil {
+		log.Fatal("ListenAndServe: ", err)
+	}
 }

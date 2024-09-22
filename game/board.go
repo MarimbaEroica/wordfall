@@ -1,64 +1,119 @@
 package game
 
-type Tile struct {
-	Letter string `json:"letter"`
-}
-
-type Column struct {
-	Tiles []Tile `json:"tiles"`
-}
+import (
+	"fmt"
+	"math"
+	"math/rand"
+	"sort"
+	"wordfall/messages"
+)
 
 type Board struct {
-	Columns [5]Column `json:"columns"`
+	Columns [][]string
 }
 
-// Initialize the board with tiles
-func InitializeBoard() *Board {
-	var board Board
-	for i := 0; i < 5; i++ {
-		board.Columns[i] = Column{Tiles: drawTiles(1000)}
+const (
+	NumColumns   = 5
+	ColumnHeight = 7 // 5 visible + 2 hidden
+)
+
+func NewBoard() *Board {
+	b := &Board{
+		Columns: make([][]string, NumColumns),
 	}
-	return &board
+	for i := 0; i < NumColumns; i++ {
+		b.Columns[i] = GenerateColumn()
+	}
+	return b
 }
 
-func drawTiles(n int) []Tile {
-	// Define the tile distribution here
-	// This is a simple example; you should modify it to match Boggle's distribution
-	possibleTiles := []string{"A", "E", "I", "O", "U", "QU", "HE", "R", "S", "T", "N"}
-	tiles := make([]Tile, n)
-	for i := 0; i < n; i++ {
-		tiles[i] = Tile{Letter: possibleTiles[i%len(possibleTiles)]}
+func GenerateColumn() []string {
+	column := make([]string, 1000)
+	letterBag := GenerateLetterBag()
+	for i := 0; i < 1000; i++ {
+		idx := rand.Intn(len(letterBag))
+		column[i] = letterBag[idx]
 	}
-	return tiles
+	return column
 }
 
-// Helper function to prepare board data for the frontend
-func PrepareBoardData(board *Board) [][]Tile {
-	data := make([][]Tile, 5)
-
-	for i := 0; i < 5; i++ {
-		column := board.Columns[i]
-		data[i] = column.Tiles[:7] // Send the top 7 tiles, 5 visible and 2 in reserve
+func (b *Board) GetVisibleTiles() [][]string {
+	visibleTiles := make([][]string, NumColumns)
+	for i := 0; i < NumColumns; i++ {
+		columnLen := len(b.Columns[i])
+		startIdx := columnLen - ColumnHeight
+		if startIdx < 0 {
+			startIdx = 0
+		}
+		visibleTiles[i] = b.Columns[i][startIdx:columnLen]
 	}
-
-	return data
+	return visibleTiles
 }
 
-// Updates board by removing the tiles in path and making the tiles from the columns fall into place
-func UpdateBoard(board *Board, path [][2]int) {
-	tilesToRemove := make(map[[2]int]bool)
-	for _, pos := range path {
-		tilesToRemove[pos] = true
+func (b *Board) GetTile(col, row int) string {
+	columnLen := len(b.Columns[col])
+	tileIdx := columnLen - row - 1
+	if tileIdx >= 0 && tileIdx < len(b.Columns[col]) {
+		return b.Columns[col][tileIdx]
+	}
+	return ""
+}
+
+func (b *Board) RemoveTiles(selectedTiles []messages.TilePosition) {
+	// Group tiles by column
+	tilesByColumn := make(map[int][]int)
+	for _, tilePos := range selectedTiles {
+		tilesByColumn[tilePos.Col] = append(tilesByColumn[tilePos.Col], tilePos.Row)
 	}
 
-	for _, pos := range path {
-		col := pos[0]
-		row := pos[1]
-		board.Columns[col].Tiles = removeTile(board.Columns[col].Tiles, row)
+	for col, rows := range tilesByColumn {
+		// Sort rows in descending order to avoid index shifting issues
+		sort.Slice(rows, func(i, j int) bool {
+			return rows[i] > rows[j]
+		})
+
+		for _, row := range rows {
+			columnLen := len(b.Columns[col])
+			tileIdx := columnLen - row - 1
+			if tileIdx >= 0 && tileIdx < len(b.Columns[col]) {
+				b.Columns[col] = append(b.Columns[col][:tileIdx], b.Columns[col][tileIdx+1:]...)
+			}
+		}
 	}
 }
 
-// Helper function to remove a tile from a column and let the above tiles fall
-func removeTile(tiles []Tile, row int) []Tile {
-	return append(tiles[:row], tiles[row+1:]...)
+func (b *Board) ValidatePath(selectedTiles []messages.TilePosition) bool {
+	if len(selectedTiles) == 0 {
+		return false
+	}
+
+	// Create a map to keep track of visited positions to prevent reusing the same tile
+	visited := make(map[string]bool)
+
+	// Start from the first tile and check adjacency
+	for i := 1; i < len(selectedTiles); i++ {
+		prev := selectedTiles[i-1]
+		curr := selectedTiles[i]
+		key := positionKey(curr.Col, curr.Row)
+		if visited[key] {
+			// Cannot reuse the same tile
+			return false
+		}
+		if !areAdjacent(prev, curr) {
+			return false
+		}
+		visited[key] = true
+	}
+
+	return true
+}
+
+func areAdjacent(a, b messages.TilePosition) bool {
+	colDiff := math.Abs(float64(a.Col - b.Col))
+	rowDiff := math.Abs(float64(a.Row - b.Row))
+	return colDiff <= 1 && rowDiff <= 1 && !(colDiff == 0 && rowDiff == 0)
+}
+
+func positionKey(col, row int) string {
+	return fmt.Sprintf("%d,%d", col, row)
 }
